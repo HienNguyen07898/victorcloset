@@ -1,0 +1,91 @@
+version: '3.8'
+services:
+    app:
+        container_name: victor_closet_app
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+            args:
+                - 'BUILD_ARGUMENT_ENV=development'
+                - 'UID=${UID:-1000}'
+                - 'GID=${GID:-1000}'
+        tty: true
+        volumes:
+            - '.:/var/www/html'
+        ports:
+            - 9000
+        networks:
+            - victor_app_network
+    web:
+        container_name: victor_closet_web
+        build:
+            context: .
+            dockerfile: docker/nginx/Dockerfile
+            args:
+                - 'BUILD_ARGUMENT_ENV=development'
+                - 'BASIC_AUTH_USER=${DOCKER_AUTH_BASIC_USER:-dimageshare}'
+                - 'BASIC_AUTH_PASSWORD=${DOCKER_AUTH_BASIC_PASSWORD:-dimage01dimage01}'
+        depends_on:
+            - app
+        volumes:
+            - './public:/var/www/html/public'
+        ports:
+            - '${DOCKER_WEB_FORWARD_PORT:-8081}:80'
+        environment:
+            - 'TZ=${APP_TIMEZONE}'
+        links:
+            - app
+        networks:
+            - victor_app_network
+    mysql:
+        container_name: victor_closet_mysql
+        build:
+            context: .
+            dockerfile: ./docker/mysql/Dockerfile
+        ports:
+            - '${DOCKER_FORWARD_MYSQL_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: "%"
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+        volumes:
+            - 'mysql_volume:/var/lib/mysql'
+        command: --innodb-use-native-aio=0 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+        networks:
+            - victor_app_network
+    mailpit:
+        image: 'axllent/mailpit:latest'
+        container_name: victor_closet_mailpit
+        restart: always
+        ports:
+            - '${DOCKER_FORWARD_MAILPIT_SMTP_PORT:-1025}:1025'
+            - '${DOCKER_FORWARD_MAILPIT_UI_PORT:-8025}:8025'
+        environment:
+            MP_MAX_MESSAGES: 5000
+            MP_SMTP_AUTH_ACCEPT_ANY: 1
+            MP_SMTP_AUTH_ALLOW_INSECURE: 1
+        networks:
+            - victor_app_network
+    minio:
+        image: 'minio/minio:latest'
+        container_name: victor_closet_minio
+        ports:
+            - '${DOCKER_FORWARD_MINIO_CONSOLE_PORT:-8900}:9000'
+            - '${DOCKER_FORWARD_MINIO_UI_PORT:-9001}:9001'
+        environment:
+            - MINIO_ROOT_USER=${DOCKER_MINIO_DEFAULT_USER:-minio_user}
+            - MINIO_ROOT_PASSWORD=${DOCKER_MINIO_DEFAULT_PASSWORD:-matching}
+        volumes:
+            - 'minio_volume:/data/minio'
+        command: minio server /data/minio --console-address ":9001"
+        networks:
+            - victor_app_network
+networks:
+    victor_app_network:
+        driver: bridge
+volumes:
+    mysql_volume:
+    minio_volume:
