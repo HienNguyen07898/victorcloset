@@ -19,6 +19,6 @@ class ProductController extends Controller
      */
     public function index()
     {
-        echo'Huế Ăn Cứt à';
+        echo'Nguyễn Xuân hiền';
     }
 }
